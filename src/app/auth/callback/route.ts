@@ -1,8 +1,14 @@
+/**
+ * BACKEND (server only). OAuth redirect target for CMU SSO (Microsoft Entra).
+ *
+ * Exchanges the authorisation code for a session, enforces the allowed-domain
+ * policy, then links the CMU account record before letting the user in.
+ */
+
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { fetchCmuBasicInfo, syncCmuAccount } from "@/lib/cmu";
 
-/** OAuth (Microsoft Entra) redirect target. Exchanges the code for a session,
- *  then enforces the allowed-domain policy before letting the user in. */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
@@ -12,7 +18,8 @@ export async function GET(request: Request) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data: session, error } =
+    await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     return NextResponse.redirect(`${origin}/login?error=auth`);
   }
@@ -31,6 +38,19 @@ export async function GET(request: Request) {
   if (!allowed.includes(domain)) {
     await supabase.auth.signOut();
     return NextResponse.redirect(`${origin}/login?error=domain_not_allowed`);
+  }
+
+  // Link the CMU record: student ID, Thai name, faculty, account type. This is
+  // a no-op until CMU IT issues the Basic Info endpoint (CMU_BASIC_INFO_URL).
+  // A failure here is logged and swallowed on purpose: a profile sync problem
+  // must never stop a student from reaching an exam that is already running.
+  const providerToken = session?.session?.provider_token;
+  if (providerToken) {
+    const info = await fetchCmuBasicInfo(providerToken);
+    if (info) {
+      const { ok, error: syncError } = await syncCmuAccount(info);
+      if (!ok) console.error("[cmu] account sync failed:", syncError);
+    }
   }
 
   return NextResponse.redirect(`${origin}/`);
