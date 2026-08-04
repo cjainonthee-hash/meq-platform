@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-04
 **For:** Boss (personal reference)
-**Status:** Code is on GitHub and ready for the Vet CMU dev. Not yet redeployed.
+**Status:** Code is on GitHub, migration 0018 applied, and the upgrade is **LIVE** on meq-platform.vercel.app. Only remaining task: add the dev as a repo collaborator.
 
 ---
 
@@ -39,10 +39,12 @@ I checked every file for leaked passwords or API keys before the first upload. C
 |---|---|---|
 | 1 | Run migration `0018` in Supabase | **DONE** (you did this) |
 | 2 | Decide the staff role policy | **DONE** (staff stay as guest, section 4) |
-| 3 | Add the dev as a collaborator on GitHub | **TO DO** (section 1 above) |
-| 4 | Decide when to redeploy to Vercel | **TO DO** (section 5 below) |
+| 3 | Deploy to Vercel | **DONE** (live, section 5) |
+| 4 | Add the dev as a collaborator on GitHub | **TO DO** (section 1 above) |
 
-So there is really only **one** thing left in your hands: adding the dev to the repo. The redeploy is whenever you say.
+So there is only **one** thing left: adding the dev to the repo.
+
+One optional item, explained in section 12: production is still pinned to the older AI grading model. Nothing is broken, but you may want to align it.
 
 ---
 
@@ -65,13 +67,24 @@ When CMU SSO goes live, a person signing in for the first time gets a role autom
 
 ---
 
-## 5. Not deployed yet (important)
+## 5. DEPLOYED (2026-08-04)
 
-The live site at **meq-platform.vercel.app still runs the OLD version.** Everything I did today is on GitHub, but not pushed to the public site.
+**The live site at meq-platform.vercel.app now runs the new version.**
 
-This was on purpose. I upgraded the two biggest pieces of the app (the web framework and the styling system) to new major versions. I verified it works by running the real site locally and confirming the login page loads correctly with the right colours and styling. But going live is your call, not mine, especially if any exam is scheduled soon.
+Deployment ID `dpl_7DpD7YXbRDmcUfYS5ZmU2Hu5NGhD`, status READY, target production.
 
-**When you want it live, just tell me and I will deploy it.** Do not deploy on a day you have an exam running.
+**Safety check before deploying:** I queried the database first and confirmed there were **zero live exams and zero scheduled exams**, so nobody could be mid-sitting. This check matters because the upgrade replaced the web framework and the styling system, and a student halfway through a timed exam would have had the page change underneath them. If you ever deploy without me, check this first.
+
+**Verified live after deploying:**
+
+- `/login` returns 200, `/` returns 307 (the sign-in gate is working, so the renamed `proxy.ts` file is doing its job)
+- The stylesheet loads and contains the CMU brand blues and every component style (`btn-primary`, `card`, `input`, `label`, `badge`)
+- The login page actually uses those styles
+- Thai text renders correctly (เข้าสู่ระบบ, บัญชี CMU, อีเมล)
+
+That last set matters because Tailwind 4 changed how styling is configured. "It built successfully" would not have proven the page still looks right, so I checked the real served files.
+
+**If anything looks wrong, you can roll back instantly** from the Vercel dashboard: Deployments, find the previous one, and use "Promote to Production". No code changes needed.
 
 ---
 
@@ -157,3 +170,17 @@ For your own reference, in case the dev mentions these:
 ---
 
 *Files: repo at `Projects/2026/MEQ_Exam_System/meq-platform`. Thai handover document at `meq-platform/docs/HANDOVER.md`.*
+
+---
+
+## 12. Optional: the AI grading model setting
+
+Nothing is broken here, but there is a small mismatch worth knowing about.
+
+The **code** now defaults to the newer `claude-opus-5` grading model. But **Vercel has `GRADING_MODEL` set explicitly** (from 3 days ago) to the older `claude-opus-4-8`, and an explicit setting always wins over the code default. So AI grading in production still uses the older model.
+
+**Why this is not a problem:** the older model still works, still grades correctly, and costs the same. Also, AI grading is off by default and each lecturer supplies their own key, so nothing is being spent unless someone turns it on.
+
+**I deliberately did not change it.** Changing which AI model grades your students' exams is not something I should do quietly as a side effect of a deploy, so it is your call.
+
+**If you want them aligned,** tell me and I will update the Vercel setting to `claude-opus-5` and redeploy. The newer model is the better grader at the same price.
