@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { AiGradeResult, RubricCriterion } from "./types";
 
-const MODEL = process.env.GRADING_MODEL || "claude-opus-4-8";
+const MODEL = process.env.GRADING_MODEL || "claude-opus-5";
 
 /**
  * Build a grading client from a caller-supplied key. AI pre-grading is OFF by
@@ -108,7 +108,13 @@ ${studentAnswer || "(the student left this blank)"}
 
   const res = await client.messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    // Claude Opus 5 thinks by default, and max_tokens caps thinking PLUS the
+    // response together. 2048 was fine on Opus 4.8 (which did not think) but
+    // truncates here, so the budget is raised. Effort is kept low: grading one
+    // short answer against a rubric does not need deep reasoning, and the
+    // lecturer is paying for this run with their own key.
+    max_tokens: 8000,
+    output_config: { effort: "low" },
     system: SYSTEM,
     tools: [tool],
     tool_choice: { type: "tool", name: "report_grade" },

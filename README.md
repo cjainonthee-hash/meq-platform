@@ -57,13 +57,69 @@ npm run dev
 ## Project layout
 
 ```
-supabase/migrations/   SQL: schema, lockstep functions, RLS, enrolment
-src/lib/               Supabase clients, auth guard, Claude grader, types
+supabase/migrations/   SQL: schema, lockstep functions, RLS, enrolment, CMU SSO
+src/lib/               Supabase clients, auth guard, Claude grader, CMU SSO, types
 src/components/        ExamRunner (student), lecturer & admin UI
 src/app/               routes: login, student, lecturer, admin, api/grade, api/export
+src/proxy.ts           runs before every request: session refresh + route guard
+docs/                  handover, requirements, v2 change notes
 ```
+
+### Frontend vs backend
+
+The split is by **environment variable prefix**, not by folder:
+
+| | Where it runs | Env vars it can read |
+|---|---|---|
+| **Frontend** | The student's browser | `NEXT_PUBLIC_*` only |
+| **Backend** | The server (API routes, server components, `proxy.ts`) | everything, including secrets |
+
+`.env.example` documents this in full. The rule that matters: renaming a
+server-only variable to start with `NEXT_PUBLIC_` ships it to every browser.
+
+## Scripts
+
+```bash
+npm run dev        # local dev server
+npm run build      # production build (also type-checks)
+npm run typecheck  # TypeScript only, no build
+npm run lint       # ESLint
+npm run seed       # create the demo accounts
+```
+
+## Toolchain notes
+
+- **Tailwind CSS v4.** Configured in CSS (`src/app/globals.css`), not in a JS
+  config file. There is no `tailwind.config.ts`; the brand palette lives in the
+  `@theme` block. Autoprefixer is gone, v4 handles prefixing itself.
+- **Next.js 16.** The `middleware.ts` convention was renamed, so the file is
+  `src/proxy.ts` and exports `proxy()`.
+- **TypeScript is pinned to 6.x on purpose.** `typescript-eslint` (behind
+  `next/typescript`) supports only `typescript < 6.1`, so moving to TypeScript 7
+  silently disables every lint rule on `.ts`/`.tsx`. TS 6 and 7 type-check
+  identically; 7 is just a faster compiler. Revisit when typescript-eslint
+  supports 7.
+- **ESLint is pinned to 9.x on purpose.** `eslint-plugin-react`, pulled in by
+  `eslint-config-next`, crashes on ESLint 10.
+
+### Known lint baseline
+
+`npm run lint` currently reports ~52 pre-existing findings. These are **not**
+regressions: the project had no working lint before Next.js 16, so this is the
+first time they have been visible. None of them break the build or the running
+app. Breakdown:
+
+| Count | Rule | What it means |
+|---|---|---|
+| ~44 | `@typescript-eslint/no-explicit-any` | Supabase query results typed as `any`. Typing debt, not a bug. |
+| 5 | `react-hooks/set-state-in-effect` | `setState` called straight from an effect. Causes an extra render pass. |
+| 3 | other `react-hooks` rules | Ref cleanup and memoization details. |
+
+Left deliberately unfixed: fixing them means editing components that run live
+exams, which is a separate, testable piece of work rather than part of a
+dependency upgrade.
 
 ## Status
 
-Phase 1 MVP. See `../Notes/2026-07-22_Requirements_and_Gaps.md` for the phase
-plan and the integrity/PDPA items scheduled for Phase 2.
+Phase 1 MVP, live. See `docs/Requirements_and_Gaps.md` for the phase plan and
+the integrity/PDPA items scheduled for Phase 2.

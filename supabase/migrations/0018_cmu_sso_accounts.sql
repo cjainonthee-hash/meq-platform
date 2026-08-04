@@ -32,16 +32,38 @@
 --   itaccounttype_TH   "บุคลากร"          itaccounttype_TH   "นักศึกษาปัจจุบัน"
 --   itaccounttype_EN   "MIS Employee"  itaccounttype_EN   "Student Account"
 --
--- TWO TRAPS THAT THIS MIGRATION HANDLES, DO NOT REMOVE THEM
+-- THREE TRAPS THAT THIS MIGRATION HANDLES, DO NOT REMOVE THEM
 --   1. CMU sends EMPTY STRINGS, not nulls. A lecturer's student_id is "" and a
 --      student's prename_TH is "". Every text field is normalised through
 --      nullif(btrim(...), '') on the way in, so "" never reaches the table.
---   2. itaccounttype_id is the ONLY reliable way to tell a student from staff.
+--   2. student_id for a non-student is EITHER "" OR A ZERO ("0", "000000000"),
+--      confirmed by CMU IT. Both mean "this person has no student ID". They are
+--      normalised to NULL by norm_student_id() below, so nothing downstream has
+--      to know about the placeholder. A real CMU student ID is year-prefixed
+--      (e.g. 641410022) and is never all zeros, so this cannot eat a real one.
+--   3. itaccounttype_id is the ONLY reliable way to tell a student from staff.
 --      Do not guess from the email: student emails are name-based, exactly the
 --      problem 0017 was written to work around.
 --
 -- Run this WHOLE file once in the Supabase SQL editor.
 -- ============================================================
+
+-- ---------- helper ----------
+-- Turn CMU's "no student ID" values into a real NULL. CMU sends "" for some
+-- staff accounts and a zero ("0", or a zero-padded run) for others; both mean
+-- the same thing. Immutable so it can be used in an index or a check.
+create or replace function public.norm_student_id(p_value text)
+returns text
+language sql immutable
+as $$
+  select nullif(
+           nullif(btrim(coalesce(p_value, '')), ''),
+           repeat('0', length(btrim(coalesce(p_value, ''))))
+         )
+$$;
+
+comment on function public.norm_student_id(text) is
+  'Normalises a CMU student_id: empty string or all-zeros becomes NULL.';
 
 -- ---------- table ----------
 -- One row per CMU account, 1:1 with profiles. profiles stays the app-level
@@ -54,8 +76,9 @@ create table if not exists public.cmu_accounts (
   cmuitaccount_name    text not null,
   cmuitaccount         text not null,
 
-  -- Student ID. NULL for staff. This is what 0017 asked lecturers to type by
-  -- hand; after SSO it arrives automatically.
+  -- Student ID. NULL for staff, because CMU's "" and "0" placeholders are
+  -- normalised away by norm_student_id() on the way in. This is what 0017
+  -- asked lecturers to type by hand; after SSO it arrives automatically.
   student_id           text,
 
   -- Name. TH is what the exam papers and score exports should show; EN is kept
@@ -157,9 +180,10 @@ begin
     raise exception 'Not signed in';
   end if;
 
-  -- Normalise: CMU sends "" for missing values, we want NULL.
+  -- Normalise: CMU sends "" for missing values, we want NULL. student_id gets
+  -- the extra zero-placeholder handling (see trap 2 in the header).
   v_account    := lower(nullif(btrim(p_payload->>'cmuitaccount'), ''));
-  v_student_id := nullif(btrim(p_payload->>'student_id'), '');
+  v_student_id := public.norm_student_id(p_payload->>'student_id');
   v_type       := nullif(btrim(p_payload->>'itaccounttype_id'), '');
 
   if v_account is null then

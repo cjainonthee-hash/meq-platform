@@ -18,7 +18,10 @@ export type CmuAccountType = "StdAcc" | "MISEmpAcc";
 /** The raw "Basic Info" payload CMU SSO returns on sign-in, verbatim.
  *  Field names are CMU's, including the mixed casing (`prename_TH`).
  *  Beware: CMU sends EMPTY STRINGS for missing values, never null. A staff
- *  member's `student_id` is `""` and a student's `prename_TH` is `""`. */
+ *  member's `student_id` is `""` and a student's `prename_TH` is `""`.
+ *  `student_id` has a second placeholder: for a non-student it may be a zero
+ *  ("0" or a zero-padded run) instead of `""`. Both mean "no student ID" and
+ *  are normalised to null by `sync_cmu_account()`. */
 export interface CmuBasicInfo {
   cmuitaccount_name: string;
   cmuitaccount: string;

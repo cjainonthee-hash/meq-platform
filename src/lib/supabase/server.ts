@@ -1,4 +1,10 @@
+/**
+ * BACKEND (server only). Supabase clients for server components, server
+ * actions and API routes. Never import this module from a client component.
+ */
+
 import { createServerClient } from "@supabase/ssr";
+import { createClient as createSbClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 /** Server Supabase client bound to the request's auth cookies. */
@@ -32,7 +38,6 @@ export async function createClient() {
  * into client code.
  */
 export function createServiceClient() {
-  const { createClient: createSbClient } = require("@supabase/supabase-js");
   return createSbClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
