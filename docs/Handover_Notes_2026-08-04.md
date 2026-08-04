@@ -44,7 +44,7 @@ I checked every file for leaked passwords or API keys before the first upload. C
 
 So there is only **one** thing left: adding the dev to the repo.
 
-One optional item, explained in section 12: production is still pinned to the older AI grading model. Nothing is broken, but you may want to align it.
+The AI grading model is now aligned to `claude-opus-5` in production too (section 12).
 
 ---
 
@@ -72,6 +72,8 @@ When CMU SSO goes live, a person signing in for the first time gets a role autom
 **The live site at meq-platform.vercel.app now runs the new version.**
 
 Deployment ID `dpl_7DpD7YXbRDmcUfYS5ZmU2Hu5NGhD`, status READY, target production.
+
+*(This was the first of two deploys today. It was superseded a few minutes later by `dpl_s3MvkWBcuFuxsMapAKShW6f7npVe`, which carries the same code plus the AI grading model change in section 12. That second one is what is live now.)*
 
 **Safety check before deploying:** I queried the database first and confirmed there were **zero live exams and zero scheduled exams**, so nobody could be mid-sitting. This check matters because the upgrade replaced the web framework and the styling system, and a student halfway through a timed exam would have had the page change underneath them. If you ever deploy without me, check this first.
 
@@ -156,7 +158,7 @@ For your own reference, in case the dev mentions these:
 | Next.js 15 → 16 | The web framework, one major version newer |
 | Tailwind 3 → 4 | The styling system, one major version newer. It is now configured differently, so there is no `tailwind.config.ts` file anymore |
 | `middleware.ts` → `proxy.ts` | Next.js renamed this. Same job: refresh logins and block signed-out visitors |
-| Claude model → `claude-opus-5` | Newer AI grading model, with the token budget raised so grades never get cut off halfway |
+| Claude model → `claude-opus-5` | Newer AI grading model, live in production, with the token budget raised so grades never get cut off halfway |
 | One env file | One template committed to GitHub, one real secret file that stays on your machine |
 
 **On the frontend/backend split the dev asked about:** the rule is the variable *name*, not the folder. Anything starting with `NEXT_PUBLIC_` is sent to every student's web browser and anyone can read it. Everything else stays on the server. That matters because if someone renames a secret key to start with `NEXT_PUBLIC_`, it leaks to the whole world instantly. It is now written out clearly in the config file so nobody does that by accident.
@@ -173,14 +175,21 @@ For your own reference, in case the dev mentions these:
 
 ---
 
-## 12. Optional: the AI grading model setting
+## 12. AI grading model: ALIGNED (2026-08-04)
 
-Nothing is broken here, but there is a small mismatch worth knowing about.
+**Done.** Production now uses `claude-opus-5` for AI pre-grading, matching the code.
 
-The **code** now defaults to the newer `claude-opus-5` grading model. But **Vercel has `GRADING_MODEL` set explicitly** (from 3 days ago) to the older `claude-opus-4-8`, and an explicit setting always wins over the code default. So AI grading in production still uses the older model.
+Previously Vercel had `GRADING_MODEL` pinned to the older `claude-opus-4-8`, and an explicit setting always overrides the code default, so production would have kept using the old model regardless of the upgrade. You approved aligning it.
 
-**Why this is not a problem:** the older model still works, still grades correctly, and costs the same. Also, AI grading is off by default and each lecturer supplies their own key, so nothing is being spent unless someone turns it on.
+**What I changed:**
 
-**I deliberately did not change it.** Changing which AI model grades your students' exams is not something I should do quietly as a side effect of a deploy, so it is your call.
+1. Replaced the `GRADING_MODEL` value in Vercel production with `claude-opus-5`
+2. Redeployed, because an environment variable change does **not** affect an already-running deployment. Without a redeploy the change would have looked applied but done nothing.
 
-**If you want them aligned,** tell me and I will update the Vercel setting to `claude-opus-5` and redeploy. The newer model is the better grader at the same price.
+Deployment `dpl_s3MvkWBcuFuxsMapAKShW6f7npVe`, READY. Verified again afterwards: `/login` 200, `/` 307, styling and Thai text all correct.
+
+**One small improvement I made while there.** Vercel had this variable stored as *encrypted/sensitive*, meaning nobody, including you, could read the value back to check it. A model name is not a secret, and being unable to verify it is how a typo survives unnoticed. I stored it as a normal readable value instead, then read it back to confirm it says exactly `claude-opus-5` with no typo or stray spaces. You and the dev can now see it in the Vercel dashboard.
+
+The genuine secrets (your Supabase keys) remain encrypted, as they should be.
+
+**Cost impact: none.** The two models are the same price, and AI grading stays off by default with each lecturer using their own key.
