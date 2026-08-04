@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-04
 **For:** Boss (personal reference)
-**Status:** Code is on GitHub, migration 0018 applied, and the upgrade is **LIVE** on meq-platform.vercel.app. Only remaining task: add the dev as a repo collaborator.
+**Status:** All technical work is COMPLETE and LIVE on meq-platform.vercel.app. Migration 0018 applied, code on GitHub, grading model aligned. The only remaining step is human: invite the dev to the repository when you meet him on 2026-08-05.
 
 ---
 
@@ -12,14 +12,21 @@
 
 It is a **private** repo under your account `cjainonthee-hash`. Private means nobody can see it unless you invite them.
 
-### To give the dev access
+*("Repo" is just short for "repository", which is GitHub's word for the project page itself.)*
 
-1. Open the link above
-2. Click **Settings** (top right of the repo page)
-3. Click **Collaborators** in the left sidebar
-4. Click **Add people**, type his GitHub username or email, and send
+### To give the dev access (planned for 2026-08-05, when you meet him)
 
-He then runs `git clone https://github.com/cjainonthee-hash/meq-platform.git` and has everything. Next time you push an update, he runs `git pull` to get it. That was the whole point of his first request.
+**Direct link, skips all the menus:**
+
+**https://github.com/cjainonthee-hash/meq-platform/settings/access**
+
+Open it, click the green **Add people** button, type his GitHub username or the email he uses for GitHub, and send. He gets an email invitation and has to accept it.
+
+If that link ever fails, navigate manually: open the repository, find the **Settings** tab with the gear icon at the far right of the row of tabs along the top (`Code`, `Issues`, `Pull requests`, ...), then **Collaborators** in the left menu. If you cannot see a Settings tab at all, you are signed into GitHub as a different account: it only appears for the owner.
+
+**Or just tell me his GitHub username and I will send the invitation for you.**
+
+Once he accepts, he runs `git clone https://github.com/cjainonthee-hash/meq-platform.git` and has everything. Whenever you push an update after that, he runs `git pull` to receive it. That was the whole point of his first request.
 
 ---
 
@@ -40,9 +47,9 @@ I checked every file for leaked passwords or API keys before the first upload. C
 | 1 | Run migration `0018` in Supabase | **DONE** (you did this) |
 | 2 | Decide the staff role policy | **DONE** (staff stay as guest, section 4) |
 | 3 | Deploy to Vercel | **DONE** (live, section 5) |
-| 4 | Add the dev as a collaborator on GitHub | **TO DO** (section 1 above) |
+| 4 | Add the dev as a collaborator on GitHub | **PLANNED 2026-08-05**, when you meet him (section 1) |
 
-So there is only **one** thing left: adding the dev to the repo.
+So there is only **one** thing left, and it is scheduled: adding the dev to the repository when you meet him on **2026-08-05**. Everything technical is finished and live.
 
 The AI grading model is now aligned to `claude-opus-5` in production too (section 12).
 
