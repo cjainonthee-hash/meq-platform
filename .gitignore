@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# MEQ Platform - files that must NEVER go into git
+# ---------------------------------------------------------------------------
+
+# Dependencies (rebuilt with `npm install`)
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build output
+.next/
+out/
+build/
+next-env.d.ts
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Secrets. The ONLY env file that is committed is .env.example (a template with
+# no real values). Every real key lives in .env.local on your machine and in the
+# Vercel dashboard in production.
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+!.env.example
+
+# Vercel link (machine-specific project id)
+.vercel
+
+# Uploads and recordings - never committed. Question images and student media
+# live in Supabase Storage, not in this repo.
+uploads/
+public/uploads/
+*.mov
+*.mp4
+*.docx
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
