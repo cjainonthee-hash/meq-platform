@@ -271,10 +271,16 @@ begin
     -- never undone by the next sign-in, and never downgraded.
     --   StdAcc    -> student
     --   MISEmpAcc -> guest, an admin promotes them to lecturer
-    -- Employees are deliberately NOT auto-made lecturers: "MIS Employee"
-    -- covers all faculty staff, not only teaching staff, and a lecturer can
-    -- read every student's answers. To change this policy, replace 'guest'
-    -- below with 'lecturer'.
+    --
+    -- CONFIRMED BY THE PI ON 2026-08-04. This is a settled decision, not a
+    -- placeholder default: do not "helpfully" change it to 'lecturer'.
+    --
+    -- Rationale: CMU's "MIS Employee" account type covers EVERY member of
+    -- faculty staff (office staff, technicians, administrators), not only
+    -- teaching staff. A lecturer in this system can read every student's exam
+    -- answers, so auto-promoting on account type alone would hand exam access
+    -- to people who should not have it. The cost is one manual promotion per
+    -- genuine lecturer, which is far cheaper than that exposure.
     role = case
              when not v_is_new then role
              when role in ('admin', 'lecturer') then role

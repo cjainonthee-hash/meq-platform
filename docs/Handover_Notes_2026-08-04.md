@@ -38,24 +38,30 @@ I checked every file for leaked passwords or API keys before the first upload. C
 | # | Task | Status |
 |---|---|---|
 | 1 | Run migration `0018` in Supabase | **DONE** (you did this) |
-| 2 | Add the dev as a collaborator on GitHub | **TO DO** (section 1 above) |
-| 3 | Decide the staff role policy | **TO DO** (section 4 below) |
+| 2 | Decide the staff role policy | **DONE** (staff stay as guest, section 4) |
+| 3 | Add the dev as a collaborator on GitHub | **TO DO** (section 1 above) |
 | 4 | Decide when to redeploy to Vercel | **TO DO** (section 5 below) |
+
+So there is really only **one** thing left in your hands: adding the dev to the repo. The redeploy is whenever you say.
 
 ---
 
-## 4. One decision I need from you
+## 4. Role policy: DECIDED (2026-08-04)
+
+**You confirmed: staff stay as guest.** This is now settled, and no further action is needed.
 
 When CMU SSO goes live, a person signing in for the first time gets a role automatically:
 
-- A **student account** (`StdAcc`) becomes a **student**. No question about this.
-- A **staff account** (`MISEmpAcc`) currently becomes a **guest**, and an admin has to promote them to lecturer by hand.
+- A **student account** (`StdAcc`) becomes a **student**.
+- A **staff account** (`MISEmpAcc`) becomes a **guest**. An admin (you) promotes them to lecturer by hand.
 
-**Why I chose the cautious option:** CMU's "MIS Employee" label covers *every* member of faculty staff, not only teachers. Office staff, technicians, and administrators all carry the same label. A lecturer in this system can read every student's exam answers. So auto-promoting everyone with a staff account would hand exam access to people who should not have it.
+**Why:** CMU's "MIS Employee" label covers *every* member of faculty staff, not only teachers. Office staff, technicians, and administrators all carry the same label. A lecturer in this system can read every student's exam answers, so auto-promoting on account type alone would hand exam access to people who should not have it.
 
-**The cost:** each real lecturer needs one manual promotion by you the first time they sign in.
+**The cost:** each genuine lecturer needs one manual promotion by you the first time they sign in. That is far cheaper than the alternative.
 
-**If you would rather skip that friction,** tell me and it is a one line change. But my recommendation is to keep it as is: promoting a few colleagues by hand is much cheaper than accidentally exposing exam answers.
+**Important:** this needed **no change to the database**. The migration you already ran was written this way from the start, so there is nothing to re-run in Supabase. I only added a comment in the code recording that this is a confirmed decision, so that nobody later assumes it was an unfinished default and "helpfully" changes it to lecturer.
+
+**Once SSO is live, your routine will be:** a colleague signs in once, tells you, and you promote them in the admin page. After that they stay a lecturer permanently. A later sign-in never downgrades them back.
 
 ---
 
@@ -146,7 +152,7 @@ For your own reference, in case the dev mentions these:
 
 ## 11. If you need to tell the dev one paragraph
 
-> The platform is at https://github.com/cjainonthee-hash/meq-platform (I have added you as a collaborator). All libraries are on the latest versions and `npm audit` is clean at zero vulnerabilities. Environment config is one template (`.env.example`) plus one local secret file (`.env.local`), split into frontend (`NEXT_PUBLIC_*`) and backend sections with comments. TypeScript is pinned at 6.x and ESLint at 9.x on purpose, and the reason is written in the README, so please do not upgrade those two. `npm run lint` shows about 52 pre-existing warnings that were invisible before, documented as a known baseline in the README. The new `cmu_accounts` table (migration 0018) is already applied and is ready for the CMU SSO fields, but stays dormant until `CMU_BASIC_INFO_URL` is set.
+> The platform is at https://github.com/cjainonthee-hash/meq-platform (I have added you as a collaborator). All libraries are on the latest versions and `npm audit` is clean at zero vulnerabilities. Environment config is one template (`.env.example`) plus one local secret file (`.env.local`), split into frontend (`NEXT_PUBLIC_*`) and backend sections with comments. TypeScript is pinned at 6.x and ESLint at 9.x on purpose, and the reason is written in the README, so please do not upgrade those two. `npm run lint` shows about 52 pre-existing warnings that were invisible before, documented as a known baseline in the README. The new `cmu_accounts` table (migration 0018) is already applied and is ready for the CMU SSO fields, but stays dormant until `CMU_BASIC_INFO_URL` is set. On first sign-in a CMU student account becomes a student automatically, while a CMU staff account becomes a guest and is promoted to lecturer by an admin: that is a deliberate policy decision, not a to-do. Please also note `ALL_MIGRATIONS.sql` now covers 0001 to 0018, so use that file for a fresh database.
 
 ---
 
