@@ -3,6 +3,17 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /** Refreshes the Supabase auth session on every request and guards routes. */
 export async function updateSession(request: NextRequest) {
+  // CMU only ever redirects back to exactly ".../app/login" — the redirect
+  // URI registered on their Azure app (see src/app/auth/cmu-start/route.ts).
+  // There's no real page at that path; forward the OAuth code straight to
+  // the actual handler.
+  const path = request.nextUrl.pathname;
+  if (path === "/app/login" && request.nextUrl.searchParams.has("code")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    return NextResponse.redirect(url);
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -30,7 +41,6 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const path = request.nextUrl.pathname;
   const isPublic =
     path === "/" ||
     path.startsWith("/login") ||

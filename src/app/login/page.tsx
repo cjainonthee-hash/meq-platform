@@ -34,25 +34,13 @@ function LoginForm() {
     process.env.NEXT_PUBLIC_ENABLE_PASSWORD_LOGIN === "true";
   const domains = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAINS || "cmu.ac.th";
 
-  async function signInSso() {
+  function signInSso() {
     setLoading(true);
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "azure",
-      options: {
-        // The CMU custom scope is required so the access token Supabase gets
-        // back is valid for calling CMU's Basic Info API (see fetchCmuBasicInfo
-        // in src/lib/cmu.ts) — without it the token's audience is wrong and
-        // that call fails even though sign-in itself succeeds.
-        scopes: "email openid profile api://cmu/Mis.Account.Read.Me.Basicinfo",
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    }
+    // Not a Supabase call: CMU's Azure app registration only allows a
+    // redirect URI on our own domain, so we drive the OAuth handshake
+    // ourselves (see src/app/auth/cmu-start and src/app/auth/callback).
+    window.location.href = "/auth/cmu-start";
   }
 
   async function signInPassword() {
