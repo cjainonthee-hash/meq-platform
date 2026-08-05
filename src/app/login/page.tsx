@@ -1,15 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+// Maps the ?error= code the /auth/callback route redirects back with to a
+// message a signed-out user can actually read. Keep in sync with the codes
+// thrown in src/app/auth/callback/route.ts.
+const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
+  missing_code: "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+  auth: "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+  domain_not_allowed:
+    "อนุญาตเฉพาะบัญชีอีเมลของมหาวิทยาลัยเชียงใหม่ (@cmu.ac.th) เท่านั้น",
+  faculty_not_allowed:
+    "ระบบนี้อนุญาตเฉพาะบุคลากรและนักศึกษาคณะสัตวแพทยศาสตร์เท่านั้น",
+};
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => {
+    const code = searchParams.get("error");
+    if (!code) return;
+    setError(CALLBACK_ERROR_MESSAGES[code] ?? "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+  }, [searchParams]);
 
   const passwordLoginEnabled =
     process.env.NEXT_PUBLIC_ENABLE_PASSWORD_LOGIN === "true";
@@ -105,5 +124,13 @@ export default function LoginPage() {
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
