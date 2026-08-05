@@ -41,7 +41,11 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "azure",
       options: {
-        scopes: "email openid profile",
+        // The CMU custom scope is required so the access token Supabase gets
+        // back is valid for calling CMU's Basic Info API (see fetchCmuBasicInfo
+        // in src/lib/cmu.ts) — without it the token's audience is wrong and
+        // that call fails even though sign-in itself succeeds.
+        scopes: "email openid profile api://cmu/Mis.Account.Read.Me.Basicinfo",
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     });
