@@ -4,6 +4,9 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+
+
+
 // Maps the ?error= code the /auth/callback route redirects back with to a
 // message a signed-out user can actually read. Keep in sync with the codes
 // thrown in src/app/auth/callback/route.ts.
@@ -19,28 +22,79 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const code = searchParams.get("code");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  useEffect(() => {
-    const code = searchParams.get("error");
-    if (!code) return;
-    setError(CALLBACK_ERROR_MESSAGES[code] ?? "เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
-  }, [searchParams]);
+
+
+  
+
+  // useEffect(() => {
+
+  //   if (code) {
+  //     setError(null);
+      console.log("Received code:", code);
+  //   } 
+   
+  // }, [code]);
 
   const passwordLoginEnabled =
     process.env.NEXT_PUBLIC_ENABLE_PASSWORD_LOGIN === "true";
   const domains = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAINS || "cmu.ac.th";
 
-  function signInSso() {
+  // function signInSso() {
+  //   setLoading(true);
+  //   setError(null);
+  //   // Not a Supabase call: CMU's Azure app registration only allows a
+  //   // redirect URI on our own domain, so we drive the OAuth handshake
+  //   // ourselves (see src/app/auth/cmu-start and src/app/auth/callback).
+  //   window.location.href = "/auth/cmu-start";
+  // }
+
+  async function signInSso() {
     setLoading(true);
     setError(null);
-    // Not a Supabase call: CMU's Azure app registration only allows a
-    // redirect URI on our own domain, so we drive the OAuth handshake
-    // ourselves (see src/app/auth/cmu-start and src/app/auth/callback).
-    window.location.href = "/auth/cmu-start";
+    const reqEnv = {
+      authorizeUrl: process.env.NEXT_PUBLIC_AUTH_URL || "",
+      clientId: process.env.NEXT_PUBLIC_CLIENT_ID || "",
+      redirectUri: process.env.NEXT_PUBLIC_REDIRECT_URI || "",
+      scope: process.env.NEXT_PUBLIC_SCOPE || "",
+      responseType: "code",
+    }
+
+  
+
+    if (!reqEnv.authorizeUrl || !reqEnv.clientId || !reqEnv.redirectUri) {
+      setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วยบัญชี CMU กรุณาลองใหม่อีกครั้ง");
+      setLoading(false);
+      return;
+    }
+
+    try {
+
+      const authUrl = new URL(reqEnv.authorizeUrl);
+      authUrl.searchParams.set("client_id", reqEnv.clientId);
+      authUrl.searchParams.set("redirect_uri", reqEnv.redirectUri);
+      authUrl.searchParams.set("response_type", reqEnv.responseType);
+      authUrl.searchParams.set("scope", reqEnv.scope);
+
+
+      // console.log("Redirecting to CMU SSO URL:", authUrl.toString());
+
+
+      window.location.href = authUrl.toString();
+      
+
+    } catch (error) {
+      // console.error("Error during SSO sign-in:", error);
+      setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วยบัญชี CMU กรุณาลองใหม่อีกครั้ง");
+      setLoading(false);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signInPassword() {
@@ -83,37 +137,9 @@ function LoginForm() {
           <span className="font-medium">@{domains.split(",")[0]}</span> เท่านั้น
         </p>
 
-        {passwordLoginEnabled && (
-          <div className="mt-6 border-t border-slate-200 pt-6 text-left">
-            <p className="mb-3 text-center text-xs font-medium uppercase tracking-wide text-amber-600">
-              เข้าสู่ระบบสำหรับทดสอบ (สำหรับพัฒนาเท่านั้น)
-            </p>
-            <label className="label">อีเมล</label>
-            <input
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="lecturer@cmu.ac.th"
-            />
-            <label className="label mt-3">รหัสผ่าน</label>
-            <input
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Demo1234!"
-            />
-            <button
-              onClick={signInPassword}
-              disabled={loading || !email || !password}
-              className="btn-ghost mt-4 w-full"
-            >
-              เข้าสู่ระบบด้วยรหัสผ่าน
-            </button>
-          </div>
-        )}
-
+     
         {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+        
       </div>
     </main>
   );
