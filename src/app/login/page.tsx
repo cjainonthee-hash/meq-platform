@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 // Maps the ?error= code the /auth/callback route redirects back with to a
 // message a signed-out user can actually read. Keep in sync with the codes
@@ -16,7 +16,6 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
 };
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackError = searchParams.get("error");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +25,10 @@ function LoginForm() {
   function signInSso() {
     setLoading(true);
     setError(null);
-    router.push("/auth/cmu-start");
+    // Full page navigation, not router.push: /auth/cmu-start is a Route
+    // Handler, not a page. The client router fetches an RSC payload for it,
+    // gets a cross-origin redirect to CMU instead, and silently does nothing.
+    window.location.href = "/auth/cmu-start";
   }
 
   return (
