@@ -25,6 +25,12 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
+  const tokenUrl = process.env.CMU_TOKEN_URL || process.env.TOKEN_URI;
+  const clientId = process.env.CMU_CLIENT_ID || process.env.CLIENT_ID;
+  const clientSecret =
+    process.env.CMU_CLIENT_SECRET || process.env.CLIENT_SECRET;
+  const scope = process.env.CMU_SCOPE || process.env.SCOPE;
+  const redirectUri = process.env.REDIRECT_URI || `${origin}/app/login`;
 
   const cookieStore = await cookies();
   const expectedState = cookieStore.get("cmu_oauth_state")?.value;
@@ -36,19 +42,23 @@ export async function GET(request: Request) {
   if (!expectedState || state !== expectedState) {
     return NextResponse.redirect(`${origin}/login?error=auth`);
   }
+  if (!tokenUrl || !clientId || !clientSecret || !scope) {
+    console.error("[cmu] OAuth server configuration is incomplete");
+    return NextResponse.redirect(`${origin}/login?error=auth`);
+  }
 
   // Exchange the authorization code for an access token ourselves.
-  const tokenRes = await fetch(process.env.CMU_TOKEN_URL!, {
+  const tokenRes = await fetch(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: process.env.CMU_CLIENT_ID!,
-      client_secret: process.env.CMU_CLIENT_SECRET!,
+      client_id: clientId,
+      client_secret: clientSecret,
       code,
       // Must exactly match what src/app/auth/cmu-start/route.ts sent.
-      redirect_uri: `${origin}/app/login`,
+      redirect_uri: redirectUri,
       grant_type: "authorization_code",
-      scope: process.env.CMU_SCOPE!,
+      scope,
     }),
   });
   if (!tokenRes.ok) {

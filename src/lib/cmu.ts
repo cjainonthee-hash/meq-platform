@@ -50,7 +50,8 @@ export async function syncCmuAccount(
 export async function fetchCmuBasicInfo(
   accessToken: string,
 ): Promise<CmuBasicInfo | null> {
-  const url = process.env.CMU_BASIC_INFO_URL;
+  const url =
+    process.env.CMU_BASIC_INFO_URL || process.env.NEXT_PUBLIC_BASICINFO_URL;
   if (!url) return null;
 
   try {

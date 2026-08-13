@@ -1,11 +1,7 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-
-
-
 
 // Maps the ?error= code the /auth/callback route redirects back with to a
 // message a signed-out user can actually read. Keep in sync with the codes
@@ -22,100 +18,19 @@ const CALLBACK_ERROR_MESSAGES: Record<string, string> = {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const code = searchParams.get("code");
+  const callbackError = searchParams.get("error");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-
-
-  
-
-  // useEffect(() => {
-
-  //   if (code) {
-  //     setError(null);
-      console.log("Received code:", code);
-  //   } 
-   
-  // }, [code]);
-
-  const passwordLoginEnabled =
-    process.env.NEXT_PUBLIC_ENABLE_PASSWORD_LOGIN === "true";
   const domains = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAINS || "cmu.ac.th";
 
-  // function signInSso() {
-  //   setLoading(true);
-  //   setError(null);
-  //   // Not a Supabase call: CMU's Azure app registration only allows a
-  //   // redirect URI on our own domain, so we drive the OAuth handshake
-  //   // ourselves (see src/app/auth/cmu-start and src/app/auth/callback).
-  //   window.location.href = "/auth/cmu-start";
-  // }
-
-  async function signInSso() {
+  function signInSso() {
     setLoading(true);
     setError(null);
-    const reqEnv = {
-      authorizeUrl: process.env.NEXT_PUBLIC_AUTH_URL || "",
-      clientId: process.env.NEXT_PUBLIC_CLIENT_ID || "",
-      redirectUri: process.env.NEXT_PUBLIC_REDIRECT_URI || "",
-      scope: process.env.NEXT_PUBLIC_SCOPE || "",
-      responseType: "code",
-    }
-
-  
-
-    if (!reqEnv.authorizeUrl || !reqEnv.clientId || !reqEnv.redirectUri) {
-      setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วยบัญชี CMU กรุณาลองใหม่อีกครั้ง");
-      setLoading(false);
-      return;
-    }
-
-    try {
-
-      const authUrl = new URL(reqEnv.authorizeUrl);
-      authUrl.searchParams.set("client_id", reqEnv.clientId);
-      authUrl.searchParams.set("redirect_uri", reqEnv.redirectUri);
-      authUrl.searchParams.set("response_type", reqEnv.responseType);
-      authUrl.searchParams.set("scope", reqEnv.scope);
-
-
-      // console.log("Redirecting to CMU SSO URL:", authUrl.toString());
-
-
-      window.location.href = authUrl.toString();
-      
-
-    } catch (error) {
-      // console.error("Error during SSO sign-in:", error);
-      setError("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วยบัญชี CMU กรุณาลองใหม่อีกครั้ง");
-      setLoading(false);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function signInPassword() {
-    setLoading(true);
-    setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
-    router.push("/");
-    router.refresh();
+    router.push("/auth/cmu-start");
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-brand-light to-[#eef3f8] p-6">
+    <main className="flex min-h-screen items-center justify-center bg-linear-to-b from-brand-light to-[#eef3f8] p-6">
       <div className="card w-full max-w-md text-center shadow-[0_1px_2px_rgba(15,23,42,0.04),0_24px_60px_-24px_rgba(15,23,42,0.28)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -137,9 +52,13 @@ function LoginForm() {
           <span className="font-medium">@{domains.split(",")[0]}</span> เท่านั้น
         </p>
 
-     
-        {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
-        
+        {(error || callbackError) && (
+          <p className="mt-4 text-sm text-red-600">
+            {error ||
+              CALLBACK_ERROR_MESSAGES[callbackError ?? ""] ||
+              CALLBACK_ERROR_MESSAGES.auth}
+          </p>
+        )}
       </div>
     </main>
   );

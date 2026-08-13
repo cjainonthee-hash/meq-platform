@@ -5,8 +5,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function updateSession(request: NextRequest) {
   // CMU only ever redirects back to exactly ".../app/login" — the redirect
   // URI registered on their Azure app (see src/app/auth/cmu-start/route.ts).
-  // There's no real page at that path; forward the OAuth code straight to
-  // the actual handler.
+  // There's no real page at that path; forward the OAuth query parameters to
+  // the server callback, which exchanges the code without exposing secrets.
   const path = request.nextUrl.pathname;
   if (path === "/app/login" && request.nextUrl.searchParams.has("code")) {
     const url = request.nextUrl.clone();
@@ -26,15 +26,15 @@ export async function updateSession(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
+            request.cookies.set(name, value),
           );
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            response.cookies.set(name, value, options),
           );
         },
       },
-    }
+    },
   );
 
   const {

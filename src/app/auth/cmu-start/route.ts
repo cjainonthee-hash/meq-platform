@@ -13,14 +13,23 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { origin } = new URL(request.url);
   const state = crypto.randomUUID();
+  const authorizeUrlValue =
+    process.env.CMU_AUTHORIZE_URL || process.env.NEXT_PUBLIC_AUTH_URL;
+  const clientId = process.env.CMU_CLIENT_ID || process.env.CLIENT_ID;
+  const scope = process.env.CMU_SCOPE || process.env.SCOPE;
+  const redirectUri = process.env.REDIRECT_URI || `${origin}/app/login`;
 
-  const authorizeUrl = new URL(process.env.CMU_AUTHORIZE_URL!);
-  authorizeUrl.searchParams.set("client_id", process.env.CMU_CLIENT_ID!);
+  if (!authorizeUrlValue || !clientId || !scope) {
+    return NextResponse.redirect(`${origin}/login?error=auth`);
+  }
+
+  const authorizeUrl = new URL(authorizeUrlValue);
+  authorizeUrl.searchParams.set("client_id", clientId);
   // Must exactly match the redirect URI registered on CMU's Azure app
   // (currently "http://localhost:3000/app/login" — not "/login").
-  authorizeUrl.searchParams.set("redirect_uri", `${origin}/app/login`);
+  authorizeUrl.searchParams.set("redirect_uri", redirectUri);
   authorizeUrl.searchParams.set("response_type", "code");
-  authorizeUrl.searchParams.set("scope", process.env.CMU_SCOPE!);
+  authorizeUrl.searchParams.set("scope", scope);
   authorizeUrl.searchParams.set("state", state);
 
   const response = NextResponse.redirect(authorizeUrl);
