@@ -101,6 +101,39 @@ npm run seed       # create the demo accounts
   supports 7.
 - **ESLint is pinned to 9.x on purpose.** `eslint-plugin-react`, pulled in by
   `eslint-config-next`, crashes on ESLint 10.
+- **Functions are pinned to `icn1` (Seoul) on purpose.** See below.
+
+### Deployment region
+
+`vercel.json` pins every function to **`icn1`, Vercel's Seoul region**, because
+the Supabase project runs in **`ap-northeast-2`, also Seoul**. Without that file
+the project inherited Vercel's default, `iad1` (Washington DC), so each request
+ran in Virginia and called the database in Korea. Measured before the change:
+`/login` took 1.54 s cold and 0.41 to 0.48 s warm, on a page that was a **cache
+HIT**, because `src/proxy.ts` refreshes the session before the cache is
+consulted.
+
+**Do not "optimize" this to `sin1` (Singapore) because it is nearer to the
+students.** Rendering one exam page makes six *sequential* Supabase calls, so
+region choice is dominated by the distance to the **database**, not to the user.
+Singapore would save roughly 30 ms once on the trip from Chiang Mai and add
+roughly 80 ms six times over on the trips to Seoul. Pin to the data.
+
+If the Supabase project is ever moved to another region, this file has to move
+with it. To check the database's region without the dashboard:
+
+```bash
+dig +short AAAA db.<project-ref>.supabase.co
+# then match that address against https://ip-ranges.amazonaws.com/ip-ranges.json
+```
+
+To verify the setting is live, read the response header. The middle segment is
+the function region and must say `icn1`:
+
+```bash
+curl -sD - -o /dev/null https://meq-platform.vercel.app/login | grep x-vercel-id
+# x-vercel-id: sin1::icn1::...
+```
 
 ### Known lint baseline
 
