@@ -49,3 +49,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# Load-test session cache (test-user tokens, never commit)
+scripts/.loadtest-sessions.json

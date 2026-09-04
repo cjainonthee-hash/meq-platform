@@ -55,6 +55,9 @@ export function ExamRunner({
   const [fsSupported, setFsSupported] = useState(true);
 
   const clockOffset = useRef(0); // serverNow - clientNow, in ms
+  // Always-current copy of `exam`, so a callback scheduled a moment ago can
+  // re-check the live state instead of the state captured when it was queued.
+  const examRef = useRef<Exam>(initialExam);
   const lastAdvanceCall = useRef(0);
   const lastStartCall = useRef(0);
   const lastFocusFlag = useRef(0);
@@ -102,6 +105,10 @@ export function ExamRunner({
 
   const serverNow = () => Date.now() + clockOffset.current;
 
+  useEffect(() => {
+    examRef.current = exam;
+  }, [exam]);
+
   // ---- subscribe to the exam row (the lockstep signal) ----
   useEffect(() => {
     const channel = supabase.current
@@ -122,22 +129,72 @@ export function ExamRunner({
     };
   }, [examId]);
 
-  // ---- fast poll as a Realtime backstop ----
+  // ---- adaptive poll as a Realtime backstop ----
   // Realtime is the instant path, but it can lag or drop an event, which made
-  // the next question appear seconds late. Polling the exam row every second
-  // guarantees the screen flips promptly (start + advance) regardless.
+  // the next question appear seconds late, so a poll guarantees the flip.
+  // A flat 1 s poll cost one request per student per second for the whole exam
+  // (100 students = 100 req/s sustained, each one re-running the `read exams`
+  // RLS policy and its two course_members lookups). The rate now follows the
+  // clock: 5 s while there is time left, 1 s only in the closing seconds, which
+  // is the only window where a late or dropped event is actually visible.
   useEffect(() => {
     if (exam.status === "closed" || exam.status === "released") return;
-    const id = setInterval(async () => {
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+
+    // How soon could the exam row plausibly change?
+    const nextDelay = () => {
+      if (exam.status === "live" && exam.current_started_at && question) {
+        const deadline =
+          new Date(exam.current_started_at).getTime() +
+          question.time_limit_seconds * 1000;
+        if (deadline - serverNow() <= 12000) return 1000;
+      }
+      if (exam.status === "scheduled" && exam.scheduled_start) {
+        const startsIn = new Date(exam.scheduled_start).getTime() - serverNow();
+        if (startsIn <= 12000) return 1000;
+      }
+      return 5000;
+    };
+
+    const poll = async () => {
       const { data } = await supabase.current
         .from("exams")
-        .select("*")
+        .select(
+          "id,status,current_question_index,current_started_at,scheduled_start,buffer_seconds"
+        )
         .eq("id", examId)
         .single();
-      if (data) setExam(data as Exam);
-    }, 1000);
-    return () => clearInterval(id);
-  }, [exam.status, examId]);
+      if (!alive) return;
+      if (data) {
+        const row = data as Exam;
+        // Merge rather than replace (this is a narrowed select, so the columns
+        // it does not fetch must survive), and return the previous object
+        // untouched when nothing moved, so an unchanged poll costs no render.
+        setExam((prev) =>
+          prev.status === row.status &&
+          prev.current_question_index === row.current_question_index &&
+          prev.current_started_at === row.current_started_at &&
+          prev.scheduled_start === row.scheduled_start
+            ? prev
+            : { ...prev, ...row }
+        );
+      }
+      timer = setTimeout(poll, nextDelay());
+    };
+
+    timer = setTimeout(poll, nextDelay());
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [
+    exam.status,
+    exam.current_started_at,
+    exam.scheduled_start,
+    question,
+    examId,
+  ]);
 
   // ---- load the current question whenever the index changes ----
   useEffect(() => {
@@ -208,8 +265,22 @@ export function ExamRunner({
 
       if (left <= 0 && Date.now() - lastAdvanceCall.current > 1500) {
         lastAdvanceCall.current = Date.now();
+        const dueIndex = exam.current_question_index;
         flushAnswer().then(() => {
-          supabase.current.rpc("advance_if_due", { p_exam_id: examId });
+          // Every browser reaches zero inside the same 250 ms tick, so without a
+          // spread all of them fire this RPC at the same instant and queue on a
+          // single exam row lock. Wait a random moment, then skip the call
+          // entirely if Realtime (or the poll) has already moved the exam on.
+          // In practice only the first browser or two ever reach the server.
+          window.setTimeout(() => {
+            if (
+              examRef.current.status !== "live" ||
+              examRef.current.current_question_index !== dueIndex
+            ) {
+              return;
+            }
+            supabase.current.rpc("advance_if_due", { p_exam_id: examId });
+          }, Math.random() * 800);
         });
       }
     }, 250);
@@ -226,7 +297,12 @@ export function ExamRunner({
       setStartRemaining(left);
       if (left <= 0 && Date.now() - lastStartCall.current > 2000) {
         lastStartCall.current = Date.now();
-        supabase.current.rpc("start_if_due", { p_exam_id: examId });
+        // Same herd as the advance call: the whole cohort sits in the waiting
+        // room and reaches the scheduled time together.
+        window.setTimeout(() => {
+          if (examRef.current.status !== "scheduled") return;
+          supabase.current.rpc("start_if_due", { p_exam_id: examId });
+        }, Math.random() * 800);
       }
     }, 500);
     return () => clearInterval(id);

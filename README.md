@@ -85,6 +85,7 @@ npm run build      # production build (also type-checks)
 npm run typecheck  # TypeScript only, no build
 npm run lint       # ESLint
 npm run seed       # create the demo accounts
+npm run loadtest -- --exam <examId> --students 100   # simulate a full cohort
 ```
 
 ## Toolchain notes
@@ -134,6 +135,69 @@ the function region and must say `icn1`:
 curl -sD - -o /dev/null https://meq-platform.vercel.app/login | grep x-vercel-id
 # x-vercel-id: sin1::icn1::...
 ```
+
+### Scaling to a full cohort
+
+Three changes make the engine survive 100 simultaneous students on the free
+Supabase instance. They are cheap, and they were all measured against the same
+bottleneck: the database is a **t3a.nano with a hard 60-connection ceiling**, so
+what matters is the *number of requests and lock waits*, not query complexity.
+
+**1. Pre-lock guards on `advance_if_due` and `start_if_due`**
+(`supabase/migrations/0020_lock_guards.sql`). Both functions used to open with
+`select * from exams ... for update`, so every caller took a row lock before
+knowing whether there was anything to do. At each question flip all 100
+browsers hit the deadline inside the same 250 ms tick and queued single file for
+that one lock. The functions now do a cheap non-locking read first and return
+immediately when nothing is due, which is 99 of every 100 calls. The caller that
+does find it due takes the lock and re-checks under it exactly as before, so the
+losers of the race still see the winner's committed update and still do nothing.
+Behaviour is unchanged; only the lock traffic drops. The every-15-seconds
+`exam_tick` cron benefits for the same reason.
+
+**2. Adaptive backstop polling** (`src/components/ExamRunner.tsx`). Realtime is
+the instant path, but a dropped event used to make the next question appear
+seconds late, so the component also polled `select *` on the exam row once per
+second. For a full cohort that was 100 requests per second sustained for the
+whole sitting, each one re-running the `read exams` RLS policy and its two
+`course_members` lookups. The poll is now self-scheduling: 5 s while there is
+time on the clock, 1 s only inside the last 12 seconds before a deadline or a
+scheduled start, on a narrowed column list, and it skips the state update
+entirely when nothing changed. Baseline drops to roughly 20 requests per second.
+
+**3. Jittered lockstep RPCs** (`src/components/ExamRunner.tsx`). Even with the
+guard, 100 identical calls landing in one 250 ms window is a spike. Both
+`advance_if_due` and `start_if_due` now wait a random 0 to 800 ms and then skip
+the call outright if Realtime or the poll has already moved the exam on, so in
+practice only the first browser or two reach the server.
+
+**Verify with the load test before an exam day, not after.** Everything above is
+an estimate until it is measured:
+
+```bash
+# once, against a STAGING project (it creates test users and writes answers)
+npm run loadtest -- --exam <examId> --students 100 --setup
+# start the exam, then drive it
+npm run loadtest -- --exam <examId> --students 100
+# afterwards
+npm run loadtest -- --exam <examId> --students 100 --cleanup
+```
+
+It reports request rate and p50/p95/p99/max latency per operation. Ramp the
+cohort at 25, then 50, then 100. Supabase rate-limits the auth endpoint per IP,
+so sign-ins are spread over `--ramp` seconds (60 by default) and sessions are
+cached in `scripts/.loadtest-sessions.json`, which is gitignored.
+
+Two ceilings the load test will not fix, worth knowing:
+
+- The **free plan caps Realtime at 200 concurrent connections**. One hundred
+  students with one tab each is comfortable; reloads plus open lecturer
+  dashboards can approach it. Watch the Realtime graph during a mock run.
+- `t3a.nano` is a **burstable** instance, so a 90-minute exam under sustained
+  load can drain CPU credits and get throttled part way through. Compute size is
+  a Pro-plan setting, but **compute is billed hourly while the plan fee is
+  monthly**, so bumping to a Small instance for a single exam day costs well
+  under a dollar. Treat it as exam-day insurance, not as an architecture change.
 
 ### Known lint baseline
 
