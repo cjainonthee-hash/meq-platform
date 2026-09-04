@@ -11,28 +11,27 @@
  *      in with the demo passwords.
  *   3. npm run seed
  */
-import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import { loadEnv, projectRef } from "./env.mjs";
 
-// ---- load .env.local (simple parser; no extra dependency) ----
-try {
-  const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-  for (const line of env.split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-  }
-} catch {
-  // fall back to real environment variables
+// Which env file to seed. Defaults to .env.local; pass `--env .env.staging` to
+// seed a staging project instead.
+const envIdx = process.argv.indexOf("--env");
+const ENV_FILE = envIdx > -1 ? process.argv[envIdx + 1] : ".env.local";
+if (!loadEnv(ENV_FILE)) {
+  console.error(`Could not read ${ENV_FILE}. Create it, or pass --env <file>.`);
+  process.exit(1);
 }
 
 const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!URL_ || !KEY) {
   console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. Fill .env.local first."
+    `${ENV_FILE} is missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.`
   );
   process.exit(1);
 }
+console.log(`Seeding project ${projectRef(URL_)} (from ${ENV_FILE})`);
 
 const db = createClient(URL_, KEY, {
   auth: { persistSession: false, autoRefreshToken: false },

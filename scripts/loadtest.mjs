@@ -12,11 +12,16 @@
  * to hold a real exam. It creates test users and writes answers.
  *
  * Usage:
- *   node scripts/loadtest.mjs --exam <examId> --students 100 --setup
- *   node scripts/loadtest.mjs --exam <examId> --students 100
- *   node scripts/loadtest.mjs --exam <examId> --students 100 --cleanup
+ *   node scripts/loadtest.mjs --env .env.staging --exam <id> --students 100 --setup
+ *   node scripts/loadtest.mjs --env .env.staging --exam <id> --students 100 --start --qtime 60
+ *   node scripts/loadtest.mjs --env .env.staging --exam <id> --students 100 --cleanup
  *
  * Flags:
+ *   --env <file>      which env file to read (default .env.local). Point this
+ *                     at a staging file. If the resolved project is the same
+ *                     one as .env.local, the run REFUSES unless you also pass
+ *                     --allow-production, because setup writes fake students
+ *                     and answers into whatever database it is aimed at.
  *   --exam <uuid>     the exam to sit (required)
  *   --students <n>    how many simulated students (default 25)
  *   --ramp <seconds>  spread sign-ins over this long (default 60). Supabase
@@ -26,34 +31,18 @@
  *                     (default 120)
  *   --setup           create/enrol the test users, then exit
  *   --cleanup         delete the test users (cascades to attempts/answers)
+ *   --start           schedule the exam to begin 30 s from now, so the run also
+ *                     exercises the waiting-room herd on start_if_due
+ *   --qtime <secs>    set every question's time limit, so a run cycles through
+ *                     several question flips instead of one 5-minute wait
  *   --no-realtime     poll only, to isolate the Realtime connection count
  *
  * Reads NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and
- * SUPABASE_SERVICE_ROLE_KEY from .env.local, same as scripts/seed.mjs.
+ * SUPABASE_SERVICE_ROLE_KEY from the chosen env file.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
-
-// ---- load .env.local (simple parser; no extra dependency) ----
-try {
-  const env = readFileSync(new URL("../.env.local", import.meta.url), "utf8");
-  for (const line of env.split("\n")) {
-    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-  }
-} catch {
-  // fall back to real environment variables
-}
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
-  console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY."
-  );
-  process.exit(1);
-}
+import { loadEnv, projectRef, productionRef } from "./env.mjs";
 
 // ---- arguments ----
 function arg(name, fallback) {
@@ -64,18 +53,50 @@ function arg(name, fallback) {
 }
 const has = (name) => process.argv.includes(`--${name}`);
 
+const ENV_FILE = arg("env", ".env.local");
 const EXAM_ID = arg("exam");
 const COUNT = Number(arg("students", 25));
 const RAMP_MS = Number(arg("ramp", 60)) * 1000;
 const MAX_MS = Number(arg("minutes", 120)) * 60 * 1000;
+const QTIME = arg("qtime") ? Number(arg("qtime")) : null;
 const USE_REALTIME = !has("no-realtime");
 const PASSWORD = "LoadTest1234!";
 const SESSION_CACHE = new URL("./.loadtest-sessions.json", import.meta.url);
+
+if (!loadEnv(ENV_FILE)) {
+  console.error(`Could not read ${ENV_FILE}. Create it, or pass --env <file>.`);
+  process.exit(1);
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
+  console.error(
+    `${ENV_FILE} is missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY / SUPABASE_SERVICE_ROLE_KEY.`
+  );
+  process.exit(1);
+}
 
 if (!EXAM_ID) {
   console.error("Missing --exam <examId>. See the header of this file.");
   process.exit(1);
 }
+
+// ---- safety: never aim this at production by accident ----
+const TARGET_REF = projectRef(SUPABASE_URL);
+const PROD_REF = productionRef();
+if (TARGET_REF && PROD_REF && TARGET_REF === PROD_REF && !has("allow-production")) {
+  console.error(
+    `\nREFUSING TO RUN. ${ENV_FILE} points at project ${TARGET_REF}, which is the` +
+      `\nsame project as .env.local, i.e. production. This script creates fake` +
+      `\nstudent accounts and writes answers.` +
+      `\n\nUse a staging project (--env .env.staging), or pass --allow-production` +
+      `\nif you genuinely mean to write into the live database.\n`
+  );
+  process.exit(1);
+}
+console.log(`Target project: ${TARGET_REF} (from ${ENV_FILE})`);
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -212,6 +233,28 @@ async function setup() {
     if (i % 20 === 0 || i === COUNT) console.log(`  enrolled ${i}/${COUNT}`);
   }
   console.log("Setup done. Now start the exam, then run without --setup.");
+}
+
+/** Shorten every question so a run cycles through several flips, not one wait. */
+async function applyQuestionTime() {
+  if (QTIME === null) return;
+  const { error } = await admin
+    .from("questions")
+    .update({ time_limit_seconds: QTIME })
+    .eq("exam_id", EXAM_ID);
+  if (error) throw error;
+  console.log(`Every question set to ${QTIME}s.`);
+}
+
+/** Put the exam 30 s in the future so the run also tests the start herd. */
+async function scheduleStart() {
+  const when = new Date(Date.now() + 30000).toISOString();
+  const { error } = await admin
+    .from("exams")
+    .update({ status: "scheduled", scheduled_start: when, current_question_index: -1 })
+    .eq("id", EXAM_ID);
+  if (error) throw error;
+  console.log(`Exam scheduled to start at ${when} (30 s from now).`);
 }
 
 async function cleanup() {
@@ -410,6 +453,8 @@ async function run() {
     ? JSON.parse(readFileSync(SESSION_CACHE, "utf8"))
     : {};
 
+  await applyQuestionTime();
+
   console.log(
     `Signing in ${COUNT} students over ${RAMP_MS / 1000}s (cached sessions are reused)…`
   );
@@ -423,6 +468,7 @@ async function run() {
     writeFileSync(SESSION_CACHE, JSON.stringify(cache, null, 2));
     if (COUNT > 1) await sleep(RAMP_MS / COUNT);
   }
+  if (has("start")) await scheduleStart();
   console.log(`${clients.length} signed in. Running…  (Ctrl+C to stop early)`);
 
   started = Date.now();
@@ -440,6 +486,9 @@ async function run() {
   process.exit(0);
 }
 
-if (has("setup")) await setup();
+if (has("setup")) {
+  await setup();
+  await applyQuestionTime();
+}
 else if (has("cleanup")) await cleanup();
 else await run();

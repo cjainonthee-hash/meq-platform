@@ -85,8 +85,12 @@ npm run build      # production build (also type-checks)
 npm run typecheck  # TypeScript only, no build
 npm run lint       # ESLint
 npm run seed       # create the demo accounts
-npm run loadtest -- --exam <examId> --students 100   # simulate a full cohort
+npm run loadtest -- --env .env.staging --exam <id> --students 100   # simulate a cohort
 ```
+
+The load test creates fake student accounts and writes answers, so it refuses to
+run against the project named in `.env.local`. Set up a free staging project
+first: see `docs/Staging_Load_Test.md`.
 
 ## Toolchain notes
 
