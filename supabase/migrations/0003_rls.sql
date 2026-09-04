@@ -17,43 +17,53 @@ alter table public.grades         enable row level security;
 alter table public.audit_log      enable row level security;
 
 -- ---------- profiles ----------
+drop policy if exists "read own profile" on public.profiles;
 create policy "read own profile" on public.profiles
   for select using (id = auth.uid() or public.is_admin());
+drop policy if exists "update own profile" on public.profiles;
 create policy "update own profile" on public.profiles
   for update using (id = auth.uid()) with check (id = auth.uid());
 -- Admins manage everyone (role changes go through set_user_role()).
+drop policy if exists "admin manage profiles" on public.profiles;
 create policy "admin manage profiles" on public.profiles
   for all using (public.is_admin()) with check (public.is_admin());
 
 -- ---------- courses ----------
+drop policy if exists "read courses you belong to" on public.courses;
 create policy "read courses you belong to" on public.courses
   for select using (
     public.is_admin()
     or public.is_course_staff(id)
     or public.is_course_student(id)
   );
+drop policy if exists "lecturers create courses" on public.courses;
 create policy "lecturers create courses" on public.courses
   for insert with check (public.current_role() in ('lecturer', 'admin'));
+drop policy if exists "staff edit their courses" on public.courses;
 create policy "staff edit their courses" on public.courses
   for update using (public.is_course_staff(id)) with check (public.is_course_staff(id));
 
 -- ---------- course_members ----------
+drop policy if exists "read memberships of your courses" on public.course_members;
 create policy "read memberships of your courses" on public.course_members
   for select using (
     user_id = auth.uid() or public.is_course_staff(course_id)
   );
+drop policy if exists "staff manage memberships" on public.course_members;
 create policy "staff manage memberships" on public.course_members
   for all using (public.is_course_staff(course_id))
   with check (public.is_course_staff(course_id));
 
 -- ---------- exams ----------
 -- Students only see exams that are live/closed/released (not drafts).
+drop policy if exists "read exams" on public.exams;
 create policy "read exams" on public.exams
   for select using (
     public.is_course_staff(course_id)
     or (public.is_course_student(course_id)
         and status in ('scheduled', 'live', 'closed', 'released'))
   );
+drop policy if exists "staff write exams" on public.exams;
 create policy "staff write exams" on public.exams
   for all using (public.is_course_staff(course_id))
   with check (public.is_course_staff(course_id));
@@ -62,11 +72,13 @@ create policy "staff write exams" on public.exams
 -- Staff: full read. Students: read only questions at/behind the current index
 -- of a live exam, or all questions once results are released. This is the
 -- second guard behind "one question per page, no peeking ahead".
+drop policy if exists "staff read questions" on public.questions;
 create policy "staff read questions" on public.questions
   for select using (
     exists (select 1 from public.exams e
             where e.id = exam_id and public.is_course_staff(e.course_id))
   );
+drop policy if exists "students read open questions" on public.questions;
 create policy "students read open questions" on public.questions
   for select using (
     exists (
@@ -79,6 +91,7 @@ create policy "students read open questions" on public.questions
         )
     )
   );
+drop policy if exists "staff write questions" on public.questions;
 create policy "staff write questions" on public.questions
   for all using (
     exists (select 1 from public.exams e
@@ -89,6 +102,7 @@ create policy "staff write questions" on public.questions
   );
 
 -- ---------- attempts ----------
+drop policy if exists "read own or staff attempts" on public.attempts;
 create policy "read own or staff attempts" on public.attempts
   for select using (
     student_id = auth.uid()
@@ -96,10 +110,12 @@ create policy "read own or staff attempts" on public.attempts
                where e.id = exam_id and public.is_course_staff(e.course_id))
   );
 -- Students update their own attempt only to mark submission time.
+drop policy if exists "student submit own attempt" on public.attempts;
 create policy "student submit own attempt" on public.attempts
   for update using (student_id = auth.uid()) with check (student_id = auth.uid());
 
 -- ---------- answers ----------
+drop policy if exists "read own or staff answers" on public.answers;
 create policy "read own or staff answers" on public.answers
   for select using (
     exists (select 1 from public.attempts a
@@ -112,11 +128,13 @@ create policy "read own or staff answers" on public.answers
   );
 -- Insert/update permitted for the owner; the enforce_answer_window() trigger
 -- does the heavy lifting (only the current question, only while live).
+drop policy if exists "student write own answers" on public.answers;
 create policy "student write own answers" on public.answers
   for insert with check (
     exists (select 1 from public.attempts a
             where a.id = attempt_id and a.student_id = auth.uid())
   );
+drop policy if exists "student update own answers" on public.answers;
 create policy "student update own answers" on public.answers
   for update using (
     exists (select 1 from public.attempts a
@@ -128,6 +146,7 @@ create policy "student update own answers" on public.answers
 
 -- ---------- grades ----------
 -- Students see their grade only after results are released.
+drop policy if exists "read grades" on public.grades;
 create policy "read grades" on public.grades
   for select using (
     exists (
@@ -143,6 +162,7 @@ create policy "read grades" on public.grades
     )
   );
 -- Staff confirm/override grades.
+drop policy if exists "staff write grades" on public.grades;
 create policy "staff write grades" on public.grades
   for all using (
     exists (
@@ -161,5 +181,6 @@ create policy "staff write grades" on public.grades
   );
 
 -- ---------- audit_log ----------
+drop policy if exists "admin reads audit" on public.audit_log;
 create policy "admin reads audit" on public.audit_log
   for select using (public.is_admin());

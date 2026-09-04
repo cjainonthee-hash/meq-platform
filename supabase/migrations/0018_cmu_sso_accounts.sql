@@ -297,12 +297,14 @@ grant execute on function public.sync_cmu_account(jsonb) to authenticated;
 alter table public.cmu_accounts enable row level security;
 
 -- Everyone may read their own CMU record.
+drop policy if exists "read own cmu account" on public.cmu_accounts;
 create policy "read own cmu account" on public.cmu_accounts
   for select using (user_id = auth.uid() or public.is_admin());
 
 -- Course staff may read the CMU record of anyone in a course they teach, so
 -- the roster, the grading panel and the CSV export can show the real Thai name
 -- and student ID.
+drop policy if exists "staff read cmu accounts of their students" on public.cmu_accounts;
 create policy "staff read cmu accounts of their students" on public.cmu_accounts
   for select using (
     exists (

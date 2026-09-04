@@ -5,10 +5,14 @@
 -- The synchronized clock relies on clients subscribing to the exams row.
 -- When current_question_index changes, every student flips to the next
 -- question at the same moment.
-alter publication supabase_realtime add table public.exams;
+do $$ begin
+  alter publication supabase_realtime add table public.exams;
+exception when duplicate_object then null; end $$;
 
 -- Proctor live view watches attempts (who joined / submitted).
-alter publication supabase_realtime add table public.attempts;
+do $$ begin
+  alter publication supabase_realtime add table public.attempts;
+exception when duplicate_object then null; end $$;
 
 -- Allow authenticated users to call the RPCs (RLS / internal checks still apply).
 grant execute on function public.server_now()             to authenticated;
