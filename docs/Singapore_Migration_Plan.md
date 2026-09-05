@@ -2,8 +2,10 @@
 
 Readable version, kept current: https://claude.ai/code/artifact/afab020a-ab13-4c12-a3b4-b3a1e858ca86
 
-**Status: plan only. Nothing here has been carried out.** Production is still in Seoul
-(`ap-northeast-2`) with functions in `icn1`.
+**Status: in progress, clean rebuild.** Decided 5 September 2026 after reading what
+production actually holds: no student work, and none ever. The platform is rebuilt in
+Singapore rather than copied. Production is still in Seoul (`ap-northeast-2`) with functions
+in `icn1` until the cutover.
 
 ## Why
 
@@ -15,6 +17,26 @@ Singapore brings it to roughly 50 ms.
 
 "Pin to the data, not the people" still holds. This satisfies it by moving both. The
 arrangement to avoid remains functions in Singapore with the database in Seoul.
+
+## Why nothing is copied
+
+Read on 5 September, not just counted. The 12 exams are `Test3` … `Test8`, `test test`,
+`DEMO (Released)` and three clones of the demo. The 35 questions have 11 distinct stems, of
+which three are literally `Question1` / `question 2` / `Question 3` and two are keyboard
+mash. The 17 attempts and 39 answers are all dated 1 to 3 August and are all Aom's own
+testing; three were ever submitted. The 7 accounts are the 5 seed logins plus Aom and the
+faculty developer.
+
+Copying that would mean disabling **two** safety mechanisms:
+
+1. `handle_new_user()` fires on insert into `auth.users` and creates a profile, so a restore
+   invents seven profiles that then collide with the real rows.
+2. `enforce_answer_window()` refuses any answer write outside the currently open question of
+   a live exam, and its only exception is `is_admin()`. A service-key migration script is not
+   an admin, so inserting historical answers **fails outright**. A copy would need the exam
+   integrity rule switched off while it ran.
+
+Neither risk is worth taking for `Test3` through `Test8`.
 
 ## Verified inventory (4 September 2026)
 
@@ -59,41 +81,28 @@ Phase 2 (rehearsal) exists.
 Smaller notes: every key is a UUID, so no sequences to reset; the `exam-tick` cron job and
 the Realtime publication both come from `ALL_MIGRATIONS.sql`, but confirm them by eye.
 
-## Two routes
-
-**Recommended: copy through the service key, remapping user ids.** A script recreates the 7
-accounts on the new project by email (via `admin.generateLink`, which creates on demand),
-records the new ids, then copies each table in dependency order rewriting `user_id` /
-`student_id` / `created_by` / `actor_id` as it goes. No database password, no extra tooling,
-and the trigger problem disappears because accounts are created normally. Costs: account
-creation timestamps reset and seed-script demo passwords do not carry over. Neither matters,
-since real users arrive through CMU SSO.
-
-**Fallback: `pg_dump` / `psql`.** Perfect fidelity, well-documented, but needs the database
-password, Postgres client tools, and correct trigger handling during restore.
-
 ## Sequence
 
-1. **Build** the Singapore project (`ap-southeast-1`) in the `meq-platform` org; run
-   `supabase/ALL_MIGRATIONS.sql` once. Confirm: 11 tables, RLS on, `exam-tick` cron present,
-   `exams` + `attempts` in the Realtime publication.
-2. **Rehearse** the copy from live production into it. Reads only, so production is safe and
-   this can be repeated. Compare row counts per table; open a released exam's results.
-3. **Freeze and copy for real.** No exam `live` or `scheduled`; re-check the storage point;
-   empty the new tables; run the copy again so the data is current.
-4. **Cut over.** Change the three variables in Vercel, and in the same change set
-   `"regions": ["sin1"]` in `vercel.json`. Pushing to `main` deploys by itself. Update
-   `.env.local` to match.
-5. **Verify:** CMU sign-in first; a released exam's answers and grades; a throwaway exam
-   started and advanced once; `x-vercel-id` middle segment reads `sin1` on a dynamic path;
-   a 25-student load test showing ~50 ms rather than ~135 ms.
-6. **Keep the Seoul project paused for a month.** It is the whole rollback: restore the three
-   variables and revert `vercel.json` to `icn1`. Delete only after a real exam has run on
-   Singapore.
+1. **Aom:** create `meq-production-sg` in **Southeast Asia (Singapore)**, inside the existing
+   `meq-platform` organisation.
+2. **Aom:** run `supabase/ALL_MIGRATIONS.sql` once in its SQL editor. Answer *Run and enable
+   RLS*; that warning is a false positive, the file enables RLS on every table itself.
+3. **Aom:** put the project URL and the two keys into `.env.singapore` (gitignored). Full
+   URL, `https://<ref>.supabase.co`, not the bare ref and not the organisation name.
+4. **Claude:** seed a demo course and exam; confirm 11 tables with RLS on, the `exam-tick`
+   cron job scheduled, and `exams` + `attempts` in the Realtime publication.
+5. **Aom:** replace the three variables in Vercel production settings. **Claude:** then push
+   `"regions": ["sin1"]` in `vercel.json`, which deploys by itself and picks up the new
+   variables in the same deployment, so code and data never sit apart.
+6. **Verify:** Aom signs in through CMU (her admin returns automatically via `0019`); the
+   developer signs in and is re-granted admin, the only role that does not restore itself; a
+   throwaway exam started and advanced once; `x-vercel-id` middle segment reads `sin1` on a
+   dynamic path; a 25-student load test landing near 50 ms rather than 135 ms.
+7. **Keep Seoul paused for a month.** Rollback is restoring the three variables and reverting
+   `vercel.json` to `icn1`. Delete only after a real exam has run on Singapore.
 
-## Open questions before starting
+## Open questions
 
-- Which route, script or dump. Script recommended.
-- A date with no exam near it. The quiet window is about half an hour.
-- Are the 17 attempts and 39 answers real student work or Aom's own testing? If testing,
-  the copy and the rehearsal both get simpler.
+All three are now answered. Route: clean rebuild. Date: no exam is scheduled or live, so any
+time works. Provenance: the attempts and answers are Aom's own testing, which is what decided
+the route.
