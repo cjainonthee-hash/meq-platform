@@ -2,10 +2,19 @@
 
 Readable version, kept current: https://claude.ai/code/artifact/afab020a-ab13-4c12-a3b4-b3a1e858ca86
 
-**Status: in progress, clean rebuild.** Decided 5 September 2026 after reading what
-production actually holds: no student work, and none ever. The platform is rebuilt in
-Singapore rather than copied. Production is still in Seoul (`ap-northeast-2`) with functions
-in `icn1` until the cutover.
+**Status: SHELVED 5 September 2026. Not proceeding.** The plan is sound and stays on file,
+but the return does not justify it. The 85 ms saved is a large fraction of a small number:
+autosaves and polls are background work a student never sees, so what they would actually
+notice is the exam page opening ~0.5 s sooner and each question arriving ~0.1 s earlier.
+Against that, production would be rebuilt from scratch and CMU sign-in re-verified, which is
+the most fragile part of the system. Production stays in Seoul (`ap-northeast-2`), functions
+in `icn1`.
+
+**Revisit if** students report questions feeling slow to appear, or an exam must run over a
+poorer network. The cheaper lever for perceived speed is the synchronised question fetch
+(measured p95 455 ms against 168 ms for everything else, because all 100 browsers fetch the
+new question in the same instant). Free-plan project limit was cleared by pausing the staging
+project, so the slot exists when this is picked up.
 
 ## Why
 

@@ -55,3 +55,6 @@ scripts/.loadtest-sessions.json
 
 # Staging credentials for the load test (never commit)
 .env.staging
+
+# Singapore production credentials (never commit)
+.env.singapore

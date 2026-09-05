@@ -1,5 +1,10 @@
 # Staging project and load test
 
+> **The staging project is PAUSED as of 5 September 2026** (it answers HTTP 540). Its
+> contents are intact: schema, demo course, the 18-question soak exam, and 100 test students.
+> Restore it from the project's Settings → General page before any run below. It was paused
+> to free a slot under the free plan's two-project limit.
+
 The load test creates a hundred fake student accounts and writes answers, so it
 must never run against the production database. This document sets up a free
 second Supabase project to run it in, and then runs it.
